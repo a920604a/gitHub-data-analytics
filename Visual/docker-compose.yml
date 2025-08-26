@@ -1,0 +1,13 @@
+version: "3.8"
+
+services:
+  streamlit:
+    build: .
+    container_name: streamlit-app
+    ports:
+      - "8501:8501" # 讓本地機能夠訪問 Streamlit 的預設端口
+    volumes:
+      - .:/app
+      - ~/.gcp/dz-final-project.json:/app/credentials.json # 複製你的 Google 認證檔案
+    environment:
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials.json
