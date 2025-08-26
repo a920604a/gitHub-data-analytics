@@ -2,7 +2,7 @@ PLATFORM ?= linux/amd64
 
 
 up:
-	docker-compose up --build --remove-orphans  -d
+	docker-compose --profile flower up --build --remove-orphans  -d
 
 
 
@@ -14,7 +14,7 @@ down:
 	docker-compose down --remove-orphans
 
 clean:
-	sudo rm -rf postgres-db-volume/
+	sudo rm -rf postgres-db-volume/ config/ logs/ plugins/
 
 restart:
 	docker-compose restart

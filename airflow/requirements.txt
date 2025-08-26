@@ -3,11 +3,14 @@ pandas
 matplotlib 
 seaborn
 
-apache-airflow-providers-google>=5.0.0
-apache-airflow[google]
+
+apache-airflow
 apache-airflow-providers-apache-spark
 pyarrow
 py4j
 pyspark
 pandas
-google-cloud-storage
+
+
+# === Storage ===
+boto3
