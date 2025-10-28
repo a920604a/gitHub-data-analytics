@@ -15,7 +15,7 @@
 
 ## 2. 系統架構
 
-![架構圖](architecture-diagram.svg)
+![架構圖](./demo/architecture-diagram.png)
 
 架構採模組化設計，確保系統具備可擴展性與可維護性。整合雲端服務、工作流程調度與資料處理工具。
 
