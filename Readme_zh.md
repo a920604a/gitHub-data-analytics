@@ -14,8 +14,50 @@
 此管線能提供開源專案人氣與開發者行為的可行性洞察。
 
 ## 2. 系統架構
+```mermaid
+flowchart LR
+    %% 定義樣式
+    classDef source fill:#f9f,stroke:#333,stroke-width:1px,color:#000;
+    classDef pipeline fill:#ffeb99,stroke:#333,stroke-width:1px,color:#000;
+    classDef gcp fill:#99ddff,stroke:#333,stroke-width:1px,color:#000;
+    classDef dashboard fill:#b3ffb3,stroke:#333,stroke-width:1px,color:#000;
 
-![架構圖](./demo/architecture-diagram.png)
+    %% GitHub Data Source
+    subgraph GitHub_Data_Source[GitHub Data Source]
+    direction TB
+        A[GitHub Archive JSON]
+    end
+    class A source;
+
+    %% Airflow Pipeline
+    subgraph Airflow_Pipeline[Airflow Pipeline]
+    direction BT
+        B[raw data] 
+        C[Parquet] 
+        E[資料清洗轉換]
+    end
+    class B,C,D,E pipeline;
+
+    %% GCP Infrastructure
+    subgraph GCP_Infrastructure[GCP Infrastructure]
+    direction LR
+        F[GCS Bucket] 
+        G[BigQuery Dataset]
+    end
+    class F,G gcp;
+
+    %% Dashboard
+    subgraph Dashboard[Streamlit Dashboard]
+        H[互動式儀表板]
+    end
+    class H dashboard;
+
+    %% 資料流向
+    A -->|下載 JSON| B -->|轉換格式| C -->|上傳 Parquet| F
+    C -->|資料清洗轉換| E --> |上傳| G
+    G -->|查詢分析| H
+
+```
 
 架構採模組化設計，確保系統具備可擴展性與可維護性。整合雲端服務、工作流程調度與資料處理工具。
 
