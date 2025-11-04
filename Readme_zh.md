@@ -84,21 +84,42 @@ terraform apply
 ```
 
 ## 4. 資料擷取 - 批次處理與工作流程調度
+本專案使用 Apache Airflow 進行資料管線調度與自動化批次處理，整體設計採用「分層式 ETL」思維：
+前段以 Pandas 進行靈活的資料解析與 schema 清洗，後段則交由 PySpark 處理大量轉換與聚合，最終輸出至 BigQuery。
 
-使用 Apache Airflow 來調度資料管線，DAG 主要執行以下步驟：
+**🧭 DAG 處理流程**
 
-1. 下載每小時的 GitHub Archive JSON 資料。
-2. 將原始資料轉換為 Parquet 格式。
-3. 上傳處理後資料至 GCS。
-4. 在 BigQuery 中建立對應的外部表格供分析使用。
+1. 下載資料
+   - 使用 `BashOperator` 下載當前小時的 GitHub Archive JSON 檔。
+   - 檔案儲存至暫存目錄供後續轉換使用。
 
-### 主要 Airflow DAG 元件：
-- **BashOperator**：下載資料。
-- **PythonOperator**：進行資料轉換。
-- **GCS Operators**：處理雲端儲存操作。
-- **BigQuery Operators**：管理資料倉儲作業。
+2. 初步轉換（Pandas）
+   - 以 `PythonOperator` 載入 JSON，利用 Pandas 進行資料結構化與欄位前處理（如展開 nested JSON、timestamp 格式轉換）。
+   - 此階段著重於靈活清洗與 schema 驗證。
+   - 輸出為中間層 Parquet 檔案。
 
-啟動工作流程指令：
+3. 批次轉換（PySpark）
+   - 使用 PySpark 讀取 Parquet，進行大規模的轉換、過濾與彙整（例如依事件類型聚合、取樣或計算統計特徵）。
+   - 藉由 Spark 的分散式架構處理大量 GitHub 活動事件（特別是跨日或週級資料）。
+
+4. 上傳與資料倉儲
+   - 透過 `GCS Operators` 將處理後的資料上傳至 Google Cloud Storage。
+   - 使用 `BigQueryInsertJobOperator` 建立對應的外部表格，提供下游分析查詢使用。
+
+| 步驟                               | 描述                                                                                           | 使用技術                                    |
+| -------------------------------- | -------------------------------------------------------------------------------------------- | --------------------------------------- |
+| **1️⃣ 資料下載**                     | 每小時從 `https://data.gharchive.org/` 下載當前小時的 JSON 檔案（gzip 壓縮），解壓後存入 Airflow 容器的 `/data` 目錄。    | `BashOperator`                          |
+| **2️⃣ JSON 轉換為 Parquet（Pandas）** | 逐批（每 1000 行）載入 JSON，利用 **Pandas** 清洗欄位（特別是 `created_at` 轉換為 datetime64[ms]），並輸出為 Parquet 檔。  | `PythonOperator` + `pandas`             |
+| **3️⃣ 上傳原始 Parquet 至 GCS**       | 將 Pandas 輸出的 Parquet 上傳至指定的 Google Cloud Storage Bucket。                                     | `LocalFilesystemToGCSOperator`          |
+| **4️⃣ 大規模聚合清洗（PySpark）**         | 啟動 **SparkSession**，讀取 Parquet，篩選出 `WatchEvent` 類型事件，依照 `repo.name` 分組計算 watch_count，並依數量排序。 | `PythonOperator` + `PySpark`            |
+| **5️⃣ 上傳清洗後結果至 GCS**             | 使用 Airflow 的 Dynamic Task Mapping，將多個 Spark 輸出的 Parquet 分批上傳至 GCS 的 Processed 目錄。            | `LocalFilesystemToGCSOperator.expand()` |
+| **6️⃣ 匯入 BigQuery（Staging）**     | 從 GCS 匯入至臨時 staging table（使用 Parquet source）。                                                | `GCSToBigQueryOperator`                 |
+| **7️⃣ 建立/檢查正式表格**                | 若正式表格不存在則自動建立（含 schema）。                                                                     | `BigQueryCreateEmptyTableOperator`      |
+| **8️⃣ 合併更新正式表格**                 | 透過 BigQuery `MERGE` 語法整合同名專案的 watch_count。                                                   | `BigQueryInsertJobOperator`             |
+| **9️⃣ 清理暫存檔案**                   | 刪除本地與中間層 Parquet 資料。                                                                         | `BashOperator`                          |
+
+
+🚀 啟動工作流程指令：
 ```bash
 cd airflow
 make up
